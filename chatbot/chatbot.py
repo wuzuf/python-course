@@ -1,3 +1,6 @@
+import shlex
+
+
 def read_inputs():
     """Read inputs from stdin."""
     while True:
@@ -10,17 +13,18 @@ def read_inputs():
 HANDLERS = {}
 
 
-def validate_input(validator, message):
+def validate_input(validator=lambda args, kwargs: (True, "")):
     """Validate input with a validator."""
 
     def decorator(func):
 
         def wrapper(*args, **kwargs):
-            if validator(args):
+            success, message = validator(args, kwargs)
+            if success:
                 try:
                     return func(*args, **kwargs)
-                except KeyError:
-                    return message
+                except KeyError as e:
+                    return f"{str(e)} does not exist."
             return message
 
         return wrapper
@@ -28,7 +32,9 @@ def validate_input(validator, message):
     return decorator
 
 
-def command_handler(command, parser=str.split, handlers=HANDLERS):
+def command_handler(command,
+                    parser=lambda x: (shlex.split(x), ""),
+                    handlers=HANDLERS):
     """Register a command handler."""
 
     def decorator(func):
@@ -41,37 +47,56 @@ def command_handler(command, parser=str.split, handlers=HANDLERS):
     return decorator
 
 
+def simple_parser(args, message):
+
+    def _parser(x):
+        a = shlex.split(x)
+        if len(args) != len(a):
+            return None, message
+        return dict(zip(args, a)), ""
+
+    return _parser
+
+
 @command_handler("quit")
 @command_handler("good bye")
 @command_handler("close")
 @command_handler("exit")
+@validate_input()
 def handle_quit(data={}):
     """Handle quit command."""
     raise StopIteration
 
 
 @command_handler("hello")
+@validate_input()
 def handle_hello(data={}):
     """Handle hello command."""
     return "How can I help you?"
 
 
-@command_handler("add")
-@validate_input(
-    lambda x: len(x) == 2,
-    "Please specify a name and a valid telephone number.",
+@command_handler(
+    "add",
+    simple_parser(
+        ['name', 'telephone'],
+        "Please specify a name and a valid telephone number.",
+    ),
 )
+@validate_input()
 def handle_add(name: str, telephone: str, data={}):
     """Handle add command."""
     data[name] = telephone
-    return f"Added {name}"
+    return f"Added {name} with number {telephone}"
 
 
-@command_handler("change")
-@validate_input(
-    lambda x: len(x) == 2,
-    "Please specify an existing name and a valid telephone number.",
+@command_handler(
+    "change",
+    simple_parser(
+        ['name', 'telephone'],
+        "Please specify a name and a valid telephone number.",
+    ),
 )
+@validate_input()
 def handle_change(name: str, telephone: str, data={}):
     """Handle change command."""
     previous = data[name]
@@ -80,13 +105,20 @@ def handle_change(name: str, telephone: str, data={}):
 
 
 @command_handler("show all")
+@validate_input()
 def handle_show_all(data={}):
     """Handle show all command."""
     return "\n".join(f"{k}: {v}" for k, v in data.items())
 
 
-@command_handler("phone")
-@validate_input(lambda x: len(x) == 1, "Please specify a name.")
+@command_handler(
+    "phone",
+    simple_parser(
+        ['name'],
+        "Please specify a name.",
+    ),
+)
+@validate_input()
 def handle_phone(name, data={}):
     """Handle phone command."""
     return data[name]
@@ -97,8 +129,13 @@ def dispatch(handlers, data):
 
     def _dispatch(line):
         for k, v in handlers.items():
-            if line.startswith(k):
-                return v['handler'](*v['parser'](line[len(k):]), data=data)
+            if line.startswith(k) and (k == line or line[len(k)] == " "):
+                args, message = v['parser'](line[len(k) + 1:])
+                if message:
+                    return message
+                if isinstance(args, dict):
+                    return v['handler'](**args, data=data)
+                return v['handler'](*args, data=data)
         return "I don't understand, please rephrase."
 
     return _dispatch

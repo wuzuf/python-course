@@ -25,9 +25,9 @@ scenarios = [
         ">> invalid command",
         "I don't understand, please rephrase.",
         ">> add John 123456",
-        "Added John",
+        "Added John with number 123456",
         ">> add Mary 234567",
-        "Added Mary",
+        "Added Mary with number 234567",
         ">> phone Mary",
         "234567",
         ">> change Mary 999999",
@@ -46,12 +46,19 @@ scenarios = [
     ],
     [
         ">> change John 1234567",
-        "Please specify an existing name and a valid telephone number.",
+        "'John' does not exist.",
         "Good bye!",
     ],
     [
         ">> phone",
         "Please specify a name.",
+        "Good bye!",
+    ],
+    [
+        ">> add 'John Smith' 123456",
+        "Added John Smith with number 123456",
+        ">> phone 'John Smith'",
+        "123456",
         "Good bye!",
     ],
 ]
